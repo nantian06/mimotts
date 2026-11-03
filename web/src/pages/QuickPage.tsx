@@ -90,6 +90,7 @@ export function QuickPage() {
 
   const stream = async (body: unknown) => {
     const ctrl = new AbortController();
+    streamCtrl.current = ctrl;
     let player: StreamPlayer | null = null;
     const title = v?.name ?? '流式合成';
     setRunning({ kind: 'stream', startedAt: Date.now(), abort: () => ctrl.abort() });
@@ -152,6 +153,10 @@ export function QuickPage() {
   };
 
   // Ctrl/⌘ + Enter 生成
+  // 离开页面时中止流式合成并停止播放（取消按钮只在这个页面里）
+  const streamCtrl = useRef<AbortController | null>(null);
+  useEffect(() => () => streamCtrl.current?.abort(), []);
+
   const genRef = useRef<() => void>(() => undefined);
   genRef.current = () => { if (canGenerate) generate(); };
   useEffect(() => {

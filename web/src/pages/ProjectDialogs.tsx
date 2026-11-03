@@ -232,10 +232,13 @@ export function CastDialog({ project, onClose }: { project: Project; onClose: ()
   const [res, setRes] = useState<{ suggestions: CastSuggestion[]; debug: LlmDebug; warnings: string[] } | null>(null);
   const [pick, setPick] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
+  const unbound = project.roles.filter((r) => !r.voiceId).map((r) => r.id);
   const go = async () => {
+    // 服务端把空的 roleIds 当作「全部角色」，所以没有未绑定角色时直接不请求
+    if (onlyUnbound && !unbound.length) { toast('所有角色都已绑定音色', 'info'); return; }
     setBusy(true);
     try {
-      const roleIds = onlyUnbound ? project.roles.filter((r) => !r.voiceId).map((r) => r.id) : [];
+      const roleIds = onlyUnbound ? unbound : [];
       const r = await post<typeof res & {}>(`/api/projects/${project.id}/cast`, { model, roleIds });
       setRes(r);
       setPick(new Set(r.suggestions.map((s) => s.role)));
@@ -270,7 +273,7 @@ export function CastDialog({ project, onClose }: { project: Project; onClose: ()
       <div className="row gap">
         <Toggle checked={onlyUnbound} onChange={setOnlyUnbound} label="只推荐还没绑定音色的角色" />
         <span className="spacer" />
-        <Button icon="sparkle" variant="primary" busy={busy} disabled={!llmReady(settings) || !project.roles.length} onClick={go}>{res ? '重新推荐' : '推荐'}</Button>
+        <Button icon="sparkle" variant="primary" busy={busy} disabled={!llmReady(settings) || !project.roles.length || (onlyUnbound && !unbound.length)} onClick={go}>{res ? '重新推荐' : '推荐'}</Button>
       </div>
       {res && (
         <ul className="cast-list">

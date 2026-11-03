@@ -191,7 +191,8 @@ export function insertSegments(id: string, input: { afterId?: string | null; rep
   return mutate(id, async (e) => {
     const roleIds = new Set(e.p.roles.map((r) => r.id));
     const segs = input.items.filter((it) => String(it.text ?? '').trim()).map((it) =>
-      newSegment(it.roleId && roleIds.has(it.roleId) ? it.roleId : e.p.roles[0]?.id ?? null, String(it.text).trim(), String(it.instruction ?? '').trim()),
+      // roleId 显式为 null 表示「不指定角色」；省略或无效时归给第一个角色
+      newSegment(it.roleId === null ? null : it.roleId && roleIds.has(it.roleId) ? it.roleId : e.p.roles[0]?.id ?? null, String(it.text).trim(), String(it.instruction ?? '').trim()),
     );
     if (input.replaceAll) {
       for (const s of e.p.segments) await removePath(path.join(e.dir, 'takes', s.id));

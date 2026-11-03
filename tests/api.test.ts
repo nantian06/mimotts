@@ -256,6 +256,10 @@ test('剧本：拆分 → 配音推荐 → 批量生成 → 过期检测 → 导
   assert.equal(imported.segments.length, 4);
   const exportsList = await api('GET', `/api/projects/${p.id}/exports`);
   assert.ok(exportsList.length >= 4);
+  // 插入片段：显式 roleId: null 保持不指定角色，省略时归给第一个角色
+  const [unassigned, defaulted] = await api('POST', `/api/projects/${p.id}/segments`, { items: [{ roleId: null, text: '没有角色的一段' }, { text: '默认角色的一段' }] });
+  assert.equal(unassigned.roleId, null);
+  assert.equal(defaulted.roleId, view.roles[0].id);
 });
 
 test('大模型辅助：指令、导演模式、打标签、描述润色、提示词模板', async () => {
