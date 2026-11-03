@@ -264,13 +264,21 @@ function Compare({ ids, voices, onClose }: { ids: string[]; voices: VoiceItem[];
     try {
       const r = await post<{ text: string; items: { voiceId: string; job?: JobInfo; cached?: boolean }[] }>('/api/voices/compare', { ids, text, force });
       let n = 0;
+      // 只播放「命中缓存」或「这次重新生成成功」的试听；失败/取消的不能拿旧试听凑数（文本或音色可能已变）
+      const ok = new Set<string>();
       await Promise.all(r.items.map(async (it) => {
-        if (it.job) { upsertJob(it.job); const j = await waitForJob(it.job.id); if (j.status === 'failed') toast(`${voices.find((v) => v.id === it.voiceId)?.name}：${j.error}`, 'err'); }
+        if (it.cached) ok.add(it.voiceId);
+        else if (it.job) {
+          upsertJob(it.job);
+          const j = await waitForJob(it.job.id);
+          if (j.status === 'done') ok.add(it.voiceId);
+          else toast(`${voices.find((v) => v.id === it.voiceId)?.name}：${j.status === 'canceled' ? '已取消' : j.error ?? '生成失败'}，不参与本次对比`, 'err');
+        }
         setDone(++n);
       }));
       await fetchInto('/api/voices');
       const fresh = peekCache<VoiceItem[]>('/api/voices') ?? [];
-      const seq = r.items.map((it) => fresh.find((v) => v.id === it.voiceId)).filter((v): v is VoiceItem => !!v?.preview)
+      const seq = r.items.filter((it) => ok.has(it.voiceId)).map((it) => fresh.find((v) => v.id === it.voiceId)).filter((v): v is VoiceItem => !!v?.preview)
         .map((v) => ({ id: `pv-${v.id}`, url: v.preview!.url, title: v.name, subtitle: '对比试听', peaks: v.preview!.peaks, durationMs: v.preview!.durationMs, pauseAfterMs: 600 }));
       playSequence(seq, 0, 'compare');
     } catch (e) { toastError(e); } finally { setBusy(false); }
