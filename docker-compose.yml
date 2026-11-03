@@ -1,0 +1,22 @@
+services:
+  mimotts:
+    build: .
+    image: mimotts:latest
+    container_name: mimotts
+    restart: unless-stopped
+    ports:
+      - "8788:8788"
+    volumes:
+      - ./data:/data
+    environment:
+      # 以下变量只在第一次启动时写入设置，之后在网页「设置」里改
+      MIMO_API_KEY: ${MIMO_API_KEY:-}
+      MIMO_BASE_URL: ${MIMO_BASE_URL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      # 设置后访问需要口令（暴露到局域网/公网时建议设置）
+      ACCESS_TOKEN: ${ACCESS_TOKEN:-}
+    extra_hosts:
+      # 让容器里能用 http://host.docker.internal:端口 访问宿主机上的服务（如 CPA 本地代理）
+      - "host.docker.internal:host-gateway"

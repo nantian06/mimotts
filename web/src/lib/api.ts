@@ -69,6 +69,21 @@ export function saveBlob(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
+/** 用带 download 属性的链接触发下载（同源时浏览器直接用这个文件名） */
+export function startDownload(url: string, name?: string) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name ?? '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** 下载数据文件：?download= 让服务端带上 Content-Disposition；mp3 = 服务端转码 */
+export function downloadFile(url: string, name: string, mp3 = false) {
+  startDownload(downloadUrl(url, name, mp3), mp3 ? name.replace(/\.wav$/i, '') + '.mp3' : name);
+}
+
 export function downloadUrl(url: string, name: string, mp3 = false): string {
   const sep = url.includes('?') ? '&' : '?';
   return `${url}${sep}download=${encodeURIComponent(name)}${mp3 ? '&format=mp3' : ''}`;

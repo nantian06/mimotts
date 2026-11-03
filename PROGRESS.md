@@ -1,6 +1,6 @@
 # MiMo TTS 工作台：进度与交接说明
 
-> 最后更新：2026-11-03。后端已完成并通过测试，前端完成了一部分。接手的人先读完本文件。
+> 最后更新：2026-11-03。后端、前端、构建脚本、Docker 部署、README、端到端测试都已完成。接手的人先读完本文件。
 
 ## 1. 已确认的需求
 
@@ -13,11 +13,11 @@
 
 ## 2. 技术栈与约束
 
-- 构建环境里 npm 源不可用，所以服务端是**零运行时依赖**：Node ≥ 22.18 原生剥离类型，直接跑 `.ts`。
+- 服务端是**零运行时依赖**：Node ≥ 22.18 原生剥离类型，直接跑 `.ts`。
   - import 必须写 `.ts` 后缀。
   - 不能用 enum、namespace、参数属性。
   - 类型导入用 `import type`。
-- 前端：React 19 + esbuild 打包，这两个是仅有的依赖。前端的 React 类型要等 `npm i` 装上 `@types/react` 后才能做类型检查。
+- 前端：React 19 + esbuild 打包，这两个是仅有的依赖。`npm run typecheck` 同时检查前后端。
 - 系统依赖 ffmpeg：解码任意格式、afftdn 降噪、MP3 导出。可以用 `FFMPEG_PATH` 指定路径；如果装了 `ffmpeg-static` 也会自动识别。
 - 端口 8788（图片工作台用 8787）。数据目录 `DATA_DIR`，默认 `./data`。可选访问口令 `ACCESS_TOKEN`。
 - 首次启动可以用这些环境变量初始化：`MIMO_API_KEY`、`MIMO_BASE_URL`、`LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL`。
@@ -43,102 +43,44 @@
 
 接口清单直接看 `server/routes.ts`，按「系统 / 音色库 / 上传与预处理 / 快速合成 / 任务 / 剧本 / 大模型」分区。
 
-### 前端（进行中）
+### 前端（已完成）
 
-已完成，都在 `web/src/` 下：
+都在 `web/src/` 下。
 
-- `lib/api.ts`：请求封装。
-- `lib/store.ts`：`useApi` 缓存 + SSE 自动失效 + 任务状态 `useJobs`/`waitForJob`。
-- `lib/player.ts`：全局播放器，支持连播和电平表。
-- `lib/stream.ts`：流式 PCM 播放。
-- `lib/router.ts`：hash 路由。
-- `lib/hooks.ts`、`lib/format.ts`、`lib/toast.ts`。
-- `components/ui.tsx`：Button、Modal、Menu、Segmented、Toggle、TagInput、AutoTextarea、Notice、GradeBadge、Progress、useConfirm。
-- `components/icons.tsx`、`components/Wave.tsx`（缩略波形播放器 `WavePlayer`、区间编辑器 `RegionEditor`）。
-- `components/Assist.tsx`：模型选择、请求查看 DebugPanel、差异视图，以及指令、标签、描述三个辅助对话框。
-- `components/Editors.tsx`：风格指令编辑器（自然语言/导演模式）、带标签面板和切块预览的文本编辑器。
-- `components/VoicePicker.tsx`：音色选择，包括临时设计音色。
-- `components/CloneEditor.tsx`：上传/录音 → 截取 → 预设/自定义参数 → 实时质量报告 → 保存为音色或新版本。导出 `QualityReportView`、`ParamsForm`、`uploadFrom`。
-- `components/Transport.tsx`：底部走带条（播放、进度、电平、任务队列）。
+| 部分 | 文件 | 说明 |
+|---|---|---|
+| 入口 | `main.tsx`、`App.tsx`、`env.d.ts` | 左侧导航、hash 路由、底部走带条、Toast、访问口令弹窗、主题、未配置 Key / 缺 ffmpeg 的提示条 |
+| 基础库 | `lib/*.ts` | 请求封装（含 `startDownload`/`downloadFile`）、`useApi` 缓存 + SSE 失效、任务状态、全局播放器、流式 PCM 播放 |
+| 通用组件 | `components/*.tsx` | 按钮/弹窗/菜单等、波形与区间编辑器、指令与文本编辑器、音色选择、克隆参考音频编辑器（支持沿用旧版本参数 `initial`）、大模型辅助对话框、`Dialogs.tsx`（命名、送入剧本） |
+| 快速合成 | `pages/QuickPage.tsx` | 草稿存 localStorage；预置音色流式（NDJSON）边生成边播放，其他走任务队列；Ctrl/⌘+Enter；历史：播放、下载 WAV/MP3、复用参数、收藏、删除、清空未收藏、存为克隆/设计音色、送入剧本 |
+| 音色库 | `pages/VoicesPage.tsx`、`pages/VoiceDetail.tsx` | 列表筛选（类型/收藏/性别/语言/标签/搜索）、多选对比试听与导出、导入、回收站；新建设计/克隆/预置变体；详情页：基本信息、标准试听、设计音色描述与抽卡/固化/取消固化/另存克隆、参考音频版本（启用/删除/调整预处理/替换） |
+| 剧本 | `pages/ProjectsPage.tsx`、`pages/ProjectEditor.tsx`、`pages/ProjectDialogs.tsx` | 列表、新建、导入项目包、复制、回收站；编辑器：角色面板（颜色、音色、指令、设定、删除时转移片段）、片段行（继承来源、过期原因、错误、任务状态、版本切换与收藏、锁定、光标处拆分、插入、拖动排序、段后停顿）、批量（设角色、生成、补指令、打标签、锁定、合并、删除）、AI 拆分预览可编辑、按行导入（识别「角色：台词」）、配音推荐、导出与导出记录、连播 |
+| 设置 | `pages/SettingsPage.tsx` | MiMo（地址预设、Key、测试连接并播放）、大模型端点增删改与获取模型列表、默认模型、额外参数 JSON 校验、预处理默认预设与参数、提示词模板编辑/恢复默认、界面与剧本默认值、系统状态 |
+| 样式 | `styles/app.css` | 录音棚控制台风格；三类音色色条；深色模式（跟随系统或手动）；`prefers-reduced-motion`；窄屏布局 |
 
-**还没写**（按这个顺序做）：
+### 构建、部署与测试
 
-1. `web/index.html`、`web/src/main.tsx`、`web/src/App.tsx`
-   - 左侧导航：快速合成 `#/quick`、剧本 `#/projects`、音色库 `#/voices`、设置 `#/settings`。
-   - 底部放 `<Transport/>`，全局放 Toast 容器。
-   - 启动时调用 `connectEvents()`。
-   - 用 `onUnauthorized` 弹出口令框，提交到 `POST /api/login {token}`。
-2. `web/src/pages/QuickPage.tsx`
-   - 左侧：`VoiceSlot` + `InstructionEditor` + `TextEditor` + 生成按钮。未固化的设计音色要禁用指令并说明原因；草稿存 localStorage。
-   - 预置音色且设置里开了 `streamPreset` 时：`fetch POST /api/synth/stream`，按行读 NDJSON（类型有 start/audio/progress/retry/done/error），用 `StreamPlayer.push`，并调用 `setLive()`。
-   - 其他情况：`POST /api/synth` 得到 job，`waitForJob` 后播放。
-   - 右侧是历史 `GET /api/quick`，每条的操作：
-     - 播放；下载 WAV/MP3，用 `downloadUrl(url, name, mp3)`。
-     - 复用参数；收藏/删除（`PATCH`/`DELETE /api/quick/:id`）；清空未收藏（`POST /api/quick/clear`）。
-     - 存为克隆音色：`uploadFrom({type:'quick', id})` 后打开 `CloneEditor`，传入 `initialUpload`。
-     - 存为设计音色：只有临时设计的结果才有，`POST /api/voices/from-quick {resultId,name}`。
-     - 送入项目：`POST /api/quick/:id/to-project {projectId, roleId}`。
-3. `web/src/pages/VoicesPage.tsx` + `VoiceDetail.tsx`
-   - 列表：`GET /api/voices` 和 `?trash=1`。按类型/收藏/标签/性别/语言筛选，支持搜索。
-   - 卡片用 `kind-edge-*` 色条区分类型，显示状态（复用 `voiceStatusText`）、试听、被引用数 `refCount`。
-   - 新建：设计音色 `POST /api/voices {kind:'design', name, description}`；克隆音色走 `CloneEditor`；预置变体 `{kind:'preset', presetId}`。
-   - 导入/导出：`POST /api/voices/import`（原始 zip 请求体）、`POST /api/voices/export {ids}`（用 `downloadPost`）。
-   - 对比试听：`POST /api/voices/compare {ids, text}`，等任务完成后依次 `playSequence`。
-   - 详情页：`GET /api/voices/:id`，返回 `urls.takes`、`urls.refs[version]`、`references`。
-     - 通用字段：`PATCH`，包括名称、标签、语言、性别、备注、收藏、`defaultInstruction`。
-     - 标准试听：`POST /api/voices/:id/preview`。
-     - 复制、移入回收站、恢复、彻底删除、导出。
-   - 设计音色详情：
-     - 描述编辑，可用 `DesignAssist` 润色。
-     - 抽卡：`POST /api/voices/:id/takes {count,text,optimizeTextPreview}`。
-     - 试听列表：收藏/备注 `PATCH`、删除。
-     - 固化：`POST /fix {takeId}`；取消固化：`POST /unfix`。
-     - 另存为克隆：`uploadFrom({type:'design-take', voiceId, takeId})`。
-     - 已固化时显示当前固化的是哪一条，并显示 `refs` 的质量报告。
-   - 克隆音色详情：
-     - 当前版本：处理后的音频 + 原始音频 + `QualityReportView`。
-     - 版本列表：`activate`/`DELETE`。
-     - 调整预处理：`uploadFrom({type:'voice-ref', voiceId, version})`，再用 `CloneEditor`，target 设为 version。
-     - 替换参考音频：`CloneEditor`，target 设为 version，不传 initialUpload。
-4. `web/src/pages/ProjectsPage.tsx` + `ProjectEditor.tsx`
-   - 列表、新建、导入项目包、回收站、复制。
-   - 编辑器 `GET /api/projects/:id`，返回 `filesBase` + 片段 takes 的 `file`，音频 URL = `filesBase + file`。
-   - 角色面板：`POST`/`PATCH`/`DELETE` roles，用 `VoiceSlot` 时设置 `allowAdhoc=false`。
-   - 片段行：用 `useDraft` 防止 SSE 刷新覆盖正在输入的内容；`effectiveSegment`/`staleReasons` 显示继承来源与过期原因；`lastError`；任务状态用 `useJobs(j=>j.segmentId===s.id)`；版本切换写 `activeTakeId`；锁定、拆分、合并、上下移动（`reorder`）。
-   - 批量：`segments/batch`、`segments/delete`、`generate {mode, ids}`、`cancel`。
-   - 导入文本：
-     - AI 拆分：`POST /split` 返回 job，`waitForJob` 后 `job.result` 是 `SplitPreview`。预览确认后 `POST /apply-split {roles, segments, replaceAll}`。
-     - 按行拆分：不调大模型，直接 `POST /segments {items}`。
-   - 配音推荐：`POST /cast`，返回 suggestions，逐个 `PATCH` role 的 voiceId。
-   - 批量补指令/标签：`POST /llm-batch {task, ids, intent}`，用 `DiffView` 预览，确认后 `POST /segments/values {values}`。
-   - 导出：`POST /export {format: wav|mp3|srt|zip|package, includeRole, splitSentences}`，列表 `GET /exports`。
-   - 连播：用 `playSequence(items, start, tag)`，`pauseAfterMs` 取 `segmentPause()`。
-5. `web/src/pages/SettingsPage.tsx`
-   - MiMo：Base URL（预设见 `MIMO_BASE_URLS`）、Key（留空不改）、`POST /api/settings/test-mimo`、并发、重试、超时、切块字数、停顿、开关项。
-   - 大模型：端点增删改；`POST /api/llm/models {endpointId|baseUrl,apiKey}` 获取模型列表；默认模型 `defaultModel`；温度；`extraBody`。端点预设可提供 CPA `http://host.docker.internal:8317/v1`。
-   - 预处理：默认预设、自定义参数（`ParamsForm`）、时长阈值。
-   - 提示词模板：`GET /api/prompts`、`PUT /api/prompts/:task {system,user,temperature}`、`DELETE` 恢复默认。
-   - 界面：标签括号、试听文本、主题、项目默认停顿、版本保留数。
-   - 系统状态：`GET /api/status`。
-   - 保存都用 `PUT /api/settings`，提交 patch。
-6. `web/src/styles/app.css`：在 `main.tsx` 里 import，esbuild 会打包成 `app.css`。组件已经用到的类名在各 tsx 里。
-   - 视觉方向：录音棚控制台。冷色纸面 `--paper #F5F6F8`，墨蓝 `--ink #18233D` 作主色，信号红 `--signal #E2463C` 只用于实时/录音/正在播放状态（`.tally`）。
-   - 三类音色用色：预置青 `#2F7D8C`、设计紫 `#7A4FD1`、克隆赭 `#C07A12`，对应 `.kind-*` 和 `.kind-edge-*`。
-   - 标题用宋体（`Songti SC`/`Noto Serif SC`），正文用系统黑体，数字用 `tabular-nums`。
-   - 要支持深色模式，以及 `prefers-reduced-motion`。
-7. `scripts/build.ts`：esbuild 入口 `web/src/main.tsx` → `dist/web/assets/app.js` + `app.css`，生成 `dist/web/index.html`。参数：`jsx: 'automatic'`、`bundle`、`minify`、`target: es2022`。
-8. `scripts/dev.ts`：esbuild watch + `node --watch server/index.ts`。
-9. `Dockerfile`：多阶段，先 node:22-slim `npm i && npm run build`；运行阶段 node:22-slim + `apt-get install ffmpeg`，只复制 `server shared dist package.json`，`CMD node server/index.ts`，`VOLUME /data`，`ENV DATA_DIR=/data PORT=8788`。
-   - 再加 `docker-compose.yml`，带 `extra_hosts host.docker.internal:host-gateway`。
-10. `README.md`、`scripts/e2e.ts`（Playwright + 模拟上游）。
+- `scripts/build.ts`：esbuild → `dist/web/assets/app.js` + `app.css`，生成 `dist/web/index.html`（带版本号防缓存）。
+- `scripts/dev.ts`：esbuild watch + `node --watch-path=server --watch-path=shared`。
+- `Dockerfile`（多阶段，运行阶段只装 ffmpeg，带 HEALTHCHECK）、`docker-compose.yml`（含 `host.docker.internal`）、`.dockerignore`。**镜像构建还没有实际跑过**（开发环境没有 Docker 守护进程）。
+- `scripts/e2e.ts`：Playwright + 模拟上游，10 步覆盖快速合成（流式）、设计抽卡与固化、克隆上传与标准化、音色库筛选、剧本导入/配音推荐/生成/过期检测/导出、AI 拆分预览、设置各页、深色模式、窄屏无横向滚动；截图在 `e2e-shots/`。页面有 JS 报错也会判失败。
+- 下载文件名：服务端 `Content-Disposition` 同时带 ASCII `filename=` 兜底和 UTF-8 `filename*=`（`server/http.ts` 的 `contentDisposition`）。
+
+### 后续可以做的
+
+- 实际构建一次 Docker 镜像并在容器里跑通。
+- 剧本片段很多（上百段）时可以考虑虚拟列表。
+- 拿真实 Key 测完第 5 节的问题后调整默认值。
 
 ## 4. 本地运行
 
 ```bash
 npm i                # 安装 react/esbuild/types
 npm run mock         # 另开终端：模拟 MiMo + LLM（http://localhost:18790/v1）
-npm run build && npm start   # 前端写完后
+npm run build && npm start   # http://localhost:8788
+npm run dev          # 开发模式
 npm test             # 后端测试（需要 ffmpeg）
+npm run e2e          # 端到端测试（需要先 build；需要 Playwright）
 ```
 
 ## 5. 待用户实测确认的事项
