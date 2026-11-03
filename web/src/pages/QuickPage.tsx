@@ -92,6 +92,9 @@ export function QuickPage() {
     const ctrl = new AbortController();
     streamCtrl.current = ctrl;
     let player: StreamPlayer | null = null;
+    // 播放别的音频或按走带条的停止时：停掉实时播放，但继续接收，生成完照样存进历史
+    let interrupted = false;
+    const interrupt = () => { interrupted = true; player?.stop(); };
     const title = v?.name ?? '流式合成';
     setRunning({ kind: 'stream', startedAt: Date.now(), abort: () => ctrl.abort() });
     let finished: QuickItem | null = null;
@@ -118,8 +121,8 @@ export function QuickPage() {
           const ev = JSON.parse(line);
           if (ev.type === 'start') {
             player = new StreamPlayer(ev.sampleRate);
-            setLive({ title, subtitle: truncate(draft.text, 40) }, player.analyser);
-          } else if (ev.type === 'audio') player?.push(ev.data);
+            setLive({ title, subtitle: truncate(draft.text, 40) }, player.analyser, interrupt);
+          } else if (ev.type === 'audio') { if (!interrupted) player?.push(ev.data); }
           else if (ev.type === 'progress') setRunning((r) => r && { ...r, progress: { done: ev.done, total: ev.total }, note: undefined });
           else if (ev.type === 'retry') setRunning((r) => r && { ...r, note: `第 ${ev.chunk + 1} 段重试（第 ${ev.attempt} 次）：${ev.message}` });
           else if (ev.type === 'done') finished = ev.result;
@@ -127,7 +130,7 @@ export function QuickPage() {
         }
       }
       // 等剩下的音频播完
-      const left = player?.remaining() ?? 0;
+      const left = interrupted ? 0 : player?.remaining() ?? 0;
       if (left > 0 && !ctrl.signal.aborted) {
         await new Promise<void>((resolve) => {
           const t = setTimeout(done, left * 1000 + 100);
@@ -138,8 +141,7 @@ export function QuickPage() {
     } catch (e: any) {
       if (e?.name !== 'AbortError') setError(e?.message ?? String(e));
     } finally {
-      player?.stop();
-      setLive(null);
+      if (!interrupted) { player?.stop(); setLive(null); }
       setRunning(null);
       fetchInto(HISTORY);
     }

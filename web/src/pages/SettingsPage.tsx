@@ -52,7 +52,7 @@ function useForm<T>(source: T) {
   const key = JSON.stringify(source);
   useEffect(() => setF(source), [key]);
   const dirty = JSON.stringify(f) !== key;
-  return { f, set: (p: Partial<T>) => setF((o) => ({ ...o, ...p })), dirty, reset: () => setF(source) };
+  return { f, set: (p: Partial<T>) => setF((o) => ({ ...o, ...p })), update: (fn: (o: T) => T) => setF(fn), dirty, reset: () => setF(source) };
 }
 
 function SaveBar({ dirty, busy, onSave, onReset, extra }: { dirty: boolean; busy: boolean; onSave: () => void; onReset: () => void; extra?: ReactNode }) {
@@ -158,7 +158,7 @@ function LlmTab({ s }: { s: PublicSettings }) {
     defaultModel: l.defaultModel as LlmModelRef | null,
     temperature: l.temperature, timeoutSec: l.timeoutSec, extraBody: l.extraBody,
   };
-  const { f, set, dirty, reset } = useForm(source);
+  const { f, set, update, dirty, reset } = useForm(source);
   const [busy, setBusy] = useState(false);
   const [fetching, setFetching] = useState<string | null>(null);
   const setEp = (id: string, p: Partial<EpForm>) => set({ endpoints: f.endpoints.map((e) => (e.id === id ? { ...e, ...p } : e)) });
@@ -170,7 +170,11 @@ function LlmTab({ s }: { s: PublicSettings }) {
       const saved = l.endpoints.some((x) => x.id === e.id);
       const r = await post<{ models: string[] }>('/api/llm/models', { endpointId: saved ? e.id : undefined, baseUrl: e.baseUrl, apiKey: e.apiKey });
       if (!r.models.length) toast('这个端点没有返回模型列表，可以手动填写', 'info');
-      else { setEp(e.id, { models: [...new Set([...e.models, ...r.models])] }); toast(`获取到 ${r.models.length} 个模型`); }
+      else {
+        // 请求期间表单可能又改过（增删端点、改字段），基于最新状态只合并这个端点的模型
+        update((o) => ({ ...o, endpoints: o.endpoints.map((x) => (x.id === e.id ? { ...x, models: [...new Set([...x.models, ...r.models])] } : x)) }));
+        toast(`获取到 ${r.models.length} 个模型`);
+      }
     } catch (err) { toastError(err); } finally { setFetching(null); }
   };
   const extraOk = (() => { if (!f.extraBody.trim()) return true; try { JSON.parse(f.extraBody); return true; } catch { return false; } })();

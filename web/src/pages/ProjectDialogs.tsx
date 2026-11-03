@@ -54,7 +54,7 @@ export function ImportText({ project, onClose }: { project: Project; onClose: ()
   const applyLines = async () => {
     setBusy(true);
     try {
-      if (parseRole && lines.some((l) => LINE_ROLE.test(l))) {
+      if (parseRole) {
         const fallback = project.roles.find((r) => r.id === lineRole)?.name ?? '旁白';
         const segments = lines.map((l) => { const m = LINE_ROLE.exec(l); return m ? { role: m[1], text: m[2].trim() } : { role: fallback, text: l }; });
         await post(`/api/projects/${project.id}/apply-split`, { roles: [], segments, replaceAll });

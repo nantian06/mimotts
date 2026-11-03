@@ -104,6 +104,17 @@ async function main() {
       await shot('01-quick');
     });
 
+    await check('流式播放中播放历史：打断实时播放，结果照样存进历史', async () => {
+      await page.getByLabel('要合成的文本').fill('第二条，用来测试打断。今天天气不错，我们出去走走吧，顺便买点水果回来。');
+      await page.getByRole('button', { name: '生成', exact: true }).click();
+      await page.locator('.transport.is-live').waitFor({ timeout: T });
+      await page.locator('.history-item').last().locator('.wave-play').click();
+      await page.locator('.transport.is-live').waitFor({ state: 'detached', timeout: 3000 });
+      // 被打断后不再等缓冲里的音频（约 5 秒）播完，生成一结束就收尾
+      await page.locator('.run-state').waitFor({ state: 'detached', timeout: 2500 });
+      await page.locator('.history-item').nth(1).waitFor({ timeout: T });
+    });
+
     await check('设计音色：新建 → 抽卡 3 条 → 固化', async () => {
       await page.goto(`${base}/#/voices`);
       await page.getByRole('button', { name: '新建音色' }).click();

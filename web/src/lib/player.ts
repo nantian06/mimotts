@@ -64,7 +64,15 @@ function ensureGraph() {
   } catch { /* 电平表不可用不影响播放 */ }
 }
 
+function interruptLive() {
+  const fn = liveInterrupt;
+  liveInterrupt = null;
+  liveAnalyser = null;
+  fn?.();
+}
+
 function start(item: PlayItem) {
+  interruptLive();
   ensureGraph();
   ctx?.resume().catch(() => undefined);
   if (audio.src !== new URL(item.url, location.href).href) audio.src = item.url;
@@ -95,6 +103,8 @@ export function resume() {
 }
 
 export function stop() {
+  interruptLive();
+  if (state.live) set({ live: null });
   pause();
   set({ sequence: null, playing: false });
 }
@@ -112,8 +122,12 @@ export function playSequence(items: PlayItem[], startIndex: number, tag: string)
   start(seq.items[seq.index]);
 }
 
-export function setLive(info: State['live'], node?: AnalyserNode | null) {
+let liveInterrupt: (() => void) | null = null;
+
+/** 进入/退出实时流式播放；onInterrupt 在播放别的音频或按停止时调用，用来停掉 Web Audio 流 */
+export function setLive(info: State['live'], node?: AnalyserNode | null, onInterrupt?: () => void) {
   liveAnalyser = node ?? null;
+  liveInterrupt = info ? onInterrupt ?? null : null;
   if (info) audio?.pause();
   set({ live: info });
 }
