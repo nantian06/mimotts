@@ -84,7 +84,8 @@ export function ImportText({ project, onClose }: { project: Project; onClose: ()
             : <Button variant="primary" icon="sparkle" busy={running} disabled={!text.trim() || !llmReady(settings)} onClick={runSplit}>拆分</Button>
           : <Button variant="primary" busy={busy} disabled={!lines.length} onClick={applyLines}>导入 {lines.length} 段</Button>}
       </>}>
-      <Segmented value={mode} onChange={(m) => { setMode(m); setPreview(null); }} options={[{ value: 'ai', label: 'AI 拆分角色和片段' }, { value: 'lines', label: '按行导入' }]} ariaLabel="导入方式" />
+      <Segmented value={mode} onChange={(m) => { setMode(m); setPreview(null); }} ariaLabel="导入方式"
+        options={[{ value: 'ai', label: 'AI 拆分角色和片段' }, { value: 'lines', label: '按行导入', disabled: running, title: running ? '正在拆分，完成后再切换' : undefined }]} />
       {preview ? (
         <SplitPreviewView preview={preview} roleNames={roleNames} onEdit={editSeg} onDrop={dropSeg} onBack={() => setPreview(null)} />
       ) : (

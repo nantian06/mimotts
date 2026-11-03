@@ -128,6 +128,11 @@ let liveInterrupt: (() => void) | null = null;
 export function setLive(info: State['live'], node?: AnalyserNode | null, onInterrupt?: () => void) {
   liveAnalyser = node ?? null;
   liveInterrupt = info ? onInterrupt ?? null : null;
+  if (info) {
+    // 进入实时播放时取消连播里待播的下一条，否则段间停顿结束后它会抢走播放器、打断实时流
+    if (gapTimer) { clearTimeout(gapTimer); gapTimer = null; }
+    set({ sequence: null });
+  }
   if (info) audio?.pause();
   set({ live: info });
 }

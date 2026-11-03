@@ -61,21 +61,29 @@ export function QuickPage() {
   const textEmpty = !draft.text.trim();
   const canGenerate = !!draft.voice && (!!v || draft.voice?.type === 'adhoc-design') && !running && (!textEmpty || (designLocked && draft.optimizeTextPreview));
 
+  // 同步的忙碌标记：提交请求返回之前 running 还没更新，防止连点或连按快捷键重复提交付费请求
+  const busy = useRef(false);
   const generate = async () => {
-    if (!draft.voice) return;
+    if (!draft.voice || busy.current) return;
+    busy.current = true;
+    try { await submit(draft.voice); } finally { busy.current = false; }
+  };
+
+  const submit = async (voice: VoiceSelector) => {
     setError('');
     const body = {
-      voice: draft.voice,
+      voice,
       text: draft.text,
       instruction: designLocked ? '' : draft.instruction,
       useDefaultInstruction: draft.useDefaultInstruction,
       optimizeTextPreview: designLocked ? draft.optimizeTextPreview : undefined,
     };
     if (canStream) return stream(body);
+    setRunning({ kind: 'job', startedAt: Date.now() });
     try {
       const { job } = await post<{ job: JobInfo }>('/api/synth', body);
       upsertJob(job);
-      setRunning({ kind: 'job', jobId: job.id, startedAt: Date.now() });
+      setRunning((r) => r && { ...r, jobId: job.id });
       const done = await waitForJob(job.id);
       if (done.status === 'done') {
         const id = (done.result as { resultId?: string } | undefined)?.resultId;
