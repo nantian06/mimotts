@@ -194,6 +194,19 @@ async function main() {
       await page.keyboard.press('Escape');
     });
 
+    await check('剧本：采用大模型写的片段指令后能保存', async () => {
+      const seg = page.locator('.seg').first();
+      await seg.getByRole('button', { name: /加指令|继承/ }).click();
+      await seg.getByRole('button', { name: '帮我写' }).click();
+      await page.locator('.modal').getByRole('button', { name: '生成', exact: true }).click();
+      await page.getByRole('button', { name: '采用这条指令' }).click();
+      await page.waitForTimeout(500);
+      await page.reload();
+      await page.locator('.seg').first().getByLabel('风格指令').waitFor({ timeout: T });
+      const v = await page.locator('.seg').first().getByLabel('风格指令').inputValue();
+      if (!v.includes('温柔舒缓')) throw new Error(`片段指令没有保存：「${v}」`);
+    });
+
     await check('设置页各分类', async () => {
       for (const tab of ['mimo', 'llm', 'preprocess', 'prompts', 'ui', 'status']) {
         await page.goto(`${base}/#/settings?tab=${tab}`);

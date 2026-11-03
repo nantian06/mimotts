@@ -80,7 +80,7 @@ export function play(item: PlayItem) {
 }
 
 export function toggle(item: PlayItem) {
-  if (state.item?.id === item.id && !state.sequence) {
+  if (isSame(state.item, item) && !state.sequence) {
     if (audio.paused) { ensureGraph(); ctx?.resume(); audio.play().catch(() => undefined); } else audio.pause();
   } else play(item);
 }
@@ -132,6 +132,11 @@ export function level(): number {
   for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
   const db = 10 * Math.log10(s / buf.length + 1e-10);
   return Math.max(0, Math.min(1, (db + 60) / 60));
+}
+
+/** 同一条音频：id 相同且 URL 相同（重新生成的试听 id 不变但 URL 会变） */
+export function isSame(a: Pick<PlayItem, 'id' | 'url'> | null | undefined, b: Pick<PlayItem, 'id' | 'url'>): boolean {
+  return !!a && a.id === b.id && a.url === b.url;
 }
 
 export function isCurrent(id: string): boolean {

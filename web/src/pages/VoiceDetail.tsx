@@ -1,5 +1,5 @@
 // 音色详情：通用信息、标准试听、设计音色（描述 / 抽卡 / 固化）、克隆音色（参考音频版本）
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DesignTake, JobInfo, RefVersion, UploadInfo, VoiceGender, VoiceLang, VoiceRecord, VoiceSummary } from '../../../shared/types.ts';
 import { GENDER_LABELS, LANG_LABELS, PROCESS_PRESETS } from '../../../shared/presets.ts';
 import { del, downloadFile, patch, post, startDownload } from '../lib/api.ts';
@@ -125,8 +125,22 @@ function InfoForm({ v }: { v: Detail }) {
   const init = () => ({ name: v.name, tags: v.tags, lang: v.lang, gender: v.gender, notes: v.notes, defaultInstruction: v.defaultInstruction });
   const [f, setF] = useState(init);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setF(init()); }, [v.updatedAt]);
-  const dirty = JSON.stringify(f) !== JSON.stringify(init());
+  // 只在可编辑字段变化时同步，并且只覆盖用户没改过的字段（抽卡、收藏等后台更新不会冲掉正在编辑的内容）
+  const serverKey = JSON.stringify(init());
+  const lastServer = useRef(init());
+  useEffect(() => {
+    const prev = lastServer.current;
+    const next = init();
+    lastServer.current = next;
+    setF((cur) => {
+      const out = { ...cur } as Record<string, unknown>;
+      for (const k of Object.keys(next) as (keyof typeof next)[]) {
+        if (JSON.stringify(cur[k]) === JSON.stringify(prev[k])) out[k] = next[k];
+      }
+      return out as typeof cur;
+    });
+  }, [serverKey]);
+  const dirty = JSON.stringify(f) !== serverKey;
   const tagSuggest = useMemo(() => [...new Set((all ?? []).flatMap((x) => x.tags))].filter((t) => t !== '官方'), [all]);
   const save = async () => {
     setBusy(true);

@@ -1,6 +1,6 @@
 // 波形：缩略播放器（走全局播放器）与可拖选区间的波形编辑器（克隆参考音频截取）
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
-import { audio, play, progress, seek, toggle, usePlayer, type PlayItem } from '../lib/player.ts';
+import { audio, isSame, play, progress, seek, toggle, usePlayer, type PlayItem } from '../lib/player.ts';
 import { formatDuration } from '../lib/format.ts';
 import { Icon } from './icons.tsx';
 import type { Region } from '../../../shared/types.ts';
@@ -20,7 +20,7 @@ export function Bars({ peaks, className = '' }: { peaks: number[]; className?: s
 
 export function WavePlayer({ item, size = 'md', showTime = true }: { item: PlayItem; size?: 'sm' | 'md' | 'lg'; showTime?: boolean }) {
   const st = usePlayer();
-  const current = st.item?.id === item.id;
+  const current = isSame(st.item, item);
   const playing = current && st.playing;
   const overlay = useRef<HTMLDivElement>(null);
   const timeEl = useRef<HTMLSpanElement>(null);

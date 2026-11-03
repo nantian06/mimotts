@@ -127,7 +127,13 @@ export function QuickPage() {
       }
       // 等剩下的音频播完
       const left = player?.remaining() ?? 0;
-      if (left > 0) await new Promise((r) => setTimeout(r, left * 1000 + 100));
+      if (left > 0 && !ctrl.signal.aborted) {
+        await new Promise<void>((resolve) => {
+          const t = setTimeout(done, left * 1000 + 100);
+          function done() { clearTimeout(t); ctrl.signal.removeEventListener('abort', done); resolve(); }
+          ctrl.signal.addEventListener('abort', done);
+        });
+      }
     } catch (e: any) {
       if (e?.name !== 'AbortError') setError(e?.message ?? String(e));
     } finally {
@@ -146,8 +152,8 @@ export function QuickPage() {
   };
 
   // Ctrl/⌘ + Enter 生成
-  const genRef = useRef(generate);
-  genRef.current = generate;
+  const genRef = useRef<() => void>(() => undefined);
+  genRef.current = () => { if (canGenerate) generate(); };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !document.body.classList.contains('has-modal')) { e.preventDefault(); genRef.current(); }
@@ -158,7 +164,8 @@ export function QuickPage() {
 
   const reuse = (r: QuickItem) => {
     const voice: VoiceSelector = r.voice.type === 'adhoc-design' ? { type: 'adhoc-design', description: r.voice.description ?? '' } : { type: 'library', id: r.voice.id ?? '' };
-    setDraft({ voice, text: r.text, instruction: r.instruction });
+    // 历史里存的是实际生效的指令（已含当时继承的默认指令），所以关闭继承，空指令保持为空
+    setDraft({ voice, text: r.text, instruction: r.instruction, useDefaultInstruction: false });
     toast('已填入这条的音色、指令和文本', 'info');
   };
 
