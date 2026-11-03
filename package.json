@@ -1,0 +1,31 @@
+{
+  "name": "mimotts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MiMo TTS 语音工作台：三模型适配、音色库（预置/设计/克隆）、克隆参考音频标准化、大模型辅助、剧本多角色合成",
+  "scripts": {
+    "build": "node --disable-warning=ExperimentalWarning scripts/build.ts",
+    "start": "node --disable-warning=ExperimentalWarning server/index.ts",
+    "dev": "node --disable-warning=ExperimentalWarning scripts/dev.ts",
+    "mock": "node --disable-warning=ExperimentalWarning scripts/mock-upstream.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
+    "e2e": "node --disable-warning=ExperimentalWarning scripts/e2e.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.3"
+  },
+  "license": "MIT"
+}
