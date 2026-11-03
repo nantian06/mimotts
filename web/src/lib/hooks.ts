@@ -50,16 +50,19 @@ export function useElapsed(since: number | undefined, active: boolean): number {
 /** 文本框本地草稿：外部值变化时只在没聚焦/没改动时同步 */
 export function useDraft(value: string, save: (v: string) => void, delay = 700) {
   const [draft, setDraft] = useState(value);
+  const latest = useRef(value);
   const dirty = useRef(false);
   const focused = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => { if (!dirty.current && !focused.current) setDraft(value); }, [value]);
+  useEffect(() => { if (!dirty.current && !focused.current) { latest.current = value; setDraft(value); } }, [value]);
   const flush = () => {
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
-    if (dirty.current) { dirty.current = false; save(draft); }
+    // 用 ref 里的最新值：onChange 后同步调用 flush 时，state 还没更新
+    if (dirty.current) { dirty.current = false; save(latest.current); }
   };
   const change = (v: string) => {
     setDraft(v);
+    latest.current = v;
     dirty.current = true;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => { timer.current = null; if (dirty.current) { dirty.current = false; save(v); } }, delay);

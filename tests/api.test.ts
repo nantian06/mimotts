@@ -124,6 +124,21 @@ test('唱歌模式只允许预置音色；设计音色忽略风格指令', async
   assert.equal(v.takes.length, 1);
 });
 
+test('智能润色、文本留空的设计结果可以送入剧本（用实际朗读文本）', async () => {
+  const { job } = await api('POST', '/api/synth', { voice: { type: 'adhoc-design', description: '温柔的女声' }, text: '', optimizeTextPreview: true });
+  const [j] = await waitJobs([job.id]);
+  assert.equal(j.status, 'done', j.error);
+  const r = (await api('GET', '/api/quick')).find((x: any) => x.id === j.result.resultId);
+  assert.equal(r.text, '');
+  assert.ok(r.actualText);
+  const p = await api('POST', '/api/projects', { name: '润色送入' });
+  await api('POST', `/api/quick/${r.id}/to-project`, { projectId: p.id });
+  const view = await api('GET', `/api/projects/${p.id}`);
+  assert.equal(view.segments.length, 1);
+  assert.equal(view.segments[0].text, r.actualText.trim());
+  assert.ok(view.segments[0].activeTakeId);
+});
+
 test('设计音色：抽卡 → 固化 → 走 voiceclone', async () => {
   const v = await api('POST', '/api/voices', { kind: 'design', name: '睡前故事', description: '温柔的年轻女声，语速舒缓', tags: ['温柔'] });
   const { jobs } = await api('POST', `/api/voices/${v.id}/takes`, { count: 2, text: '晚安呀，今天辛苦了。把灯调暗一点，闭上眼睛，我给你讲一个很短很短的故事。' });
@@ -256,6 +271,10 @@ test('剧本：拆分 → 配音推荐 → 批量生成 → 过期检测 → 导
   assert.equal(imported.segments.length, 4);
   const exportsList = await api('GET', `/api/projects/${p.id}/exports`);
   assert.ok(exportsList.length >= 4);
+  // 插入片段：显式 roleId: null 保持不指定角色，省略时归给第一个角色
+  const [unassigned, defaulted] = await api('POST', `/api/projects/${p.id}/segments`, { items: [{ roleId: null, text: '没有角色的一段' }, { text: '默认角色的一段' }] });
+  assert.equal(unassigned.roleId, null);
+  assert.equal(defaulted.roleId, view.roles[0].id);
 });
 
 test('大模型辅助：指令、导演模式、打标签、描述润色、提示词模板', async () => {

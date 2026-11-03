@@ -145,6 +145,12 @@ export function mimeOf(file: string): string {
   return MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
 }
 
+/** 下载文件名：ASCII 兜底 + RFC 5987 的 UTF-8 文件名（RFC 6266） */
+export function contentDisposition(name: string): string {
+  const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_') || 'download';
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
+
 /** 发送文件（支持 Range，音频可拖动进度） */
 export async function sendFile(
   req: http.IncomingMessage,
@@ -161,7 +167,7 @@ export async function sendFile(
     'Cache-Control': opts.cache ?? 'no-cache',
     'Last-Modified': st.mtime.toUTCString(),
   };
-  if (opts.downloadName) headers['Content-Disposition'] = `attachment; filename*=UTF-8''${encodeURIComponent(opts.downloadName)}`;
+  if (opts.downloadName) headers['Content-Disposition'] = contentDisposition(opts.downloadName);
   const range = req.headers.range;
   if (range) {
     const m = /bytes=(\d*)-(\d*)/.exec(range);
@@ -193,7 +199,7 @@ export async function sendFile(
 
 export function sendBuffer(res: http.ServerResponse, buf: Buffer, type: string, downloadName?: string): void {
   const headers: Record<string, string | number> = { 'Content-Type': type, 'Content-Length': buf.length, 'Cache-Control': 'no-store' };
-  if (downloadName) headers['Content-Disposition'] = `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}`;
+  if (downloadName) headers['Content-Disposition'] = contentDisposition(downloadName);
   res.writeHead(200, headers);
   res.end(buf);
 }

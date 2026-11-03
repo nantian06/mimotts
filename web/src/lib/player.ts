@@ -64,7 +64,15 @@ function ensureGraph() {
   } catch { /* 电平表不可用不影响播放 */ }
 }
 
+function interruptLive() {
+  const fn = liveInterrupt;
+  liveInterrupt = null;
+  liveAnalyser = null;
+  fn?.();
+}
+
 function start(item: PlayItem) {
+  interruptLive();
   ensureGraph();
   ctx?.resume().catch(() => undefined);
   if (audio.src !== new URL(item.url, location.href).href) audio.src = item.url;
@@ -80,7 +88,7 @@ export function play(item: PlayItem) {
 }
 
 export function toggle(item: PlayItem) {
-  if (state.item?.id === item.id && !state.sequence) {
+  if (isSame(state.item, item) && !state.sequence) {
     if (audio.paused) { ensureGraph(); ctx?.resume(); audio.play().catch(() => undefined); } else audio.pause();
   } else play(item);
 }
@@ -95,6 +103,8 @@ export function resume() {
 }
 
 export function stop() {
+  interruptLive();
+  if (state.live) set({ live: null });
   pause();
   set({ sequence: null, playing: false });
 }
@@ -112,8 +122,17 @@ export function playSequence(items: PlayItem[], startIndex: number, tag: string)
   start(seq.items[seq.index]);
 }
 
-export function setLive(info: State['live'], node?: AnalyserNode | null) {
+let liveInterrupt: (() => void) | null = null;
+
+/** 进入/退出实时流式播放；onInterrupt 在播放别的音频或按停止时调用，用来停掉 Web Audio 流 */
+export function setLive(info: State['live'], node?: AnalyserNode | null, onInterrupt?: () => void) {
   liveAnalyser = node ?? null;
+  liveInterrupt = info ? onInterrupt ?? null : null;
+  if (info) {
+    // 进入实时播放时取消连播里待播的下一条，否则段间停顿结束后它会抢走播放器、打断实时流
+    if (gapTimer) { clearTimeout(gapTimer); gapTimer = null; }
+    set({ sequence: null });
+  }
   if (info) audio?.pause();
   set({ live: info });
 }
@@ -132,6 +151,11 @@ export function level(): number {
   for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
   const db = 10 * Math.log10(s / buf.length + 1e-10);
   return Math.max(0, Math.min(1, (db + 60) / 60));
+}
+
+/** 同一条音频：id 相同且 URL 相同（重新生成的试听 id 不变但 URL 会变） */
+export function isSame(a: Pick<PlayItem, 'id' | 'url'> | null | undefined, b: Pick<PlayItem, 'id' | 'url'>): boolean {
+  return !!a && a.id === b.id && a.url === b.url;
 }
 
 export function isCurrent(id: string): boolean {

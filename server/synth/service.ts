@@ -329,16 +329,19 @@ export function timelineForPlayback(projectId: string) {
 export async function quickToProject(resultId: string, projectId: string, roleId: string | null): Promise<void> {
   const r = quick.getQuick(resultId);
   const p = projects.getProject(projectId);
+  // 设计音色「智能润色」且文本留空时，模型自己写的文本在 actualText 里
+  const text = (r.text || r.actualText || '').trim();
+  if (!text) throw bad('这条结果没有可用的文本，无法送入剧本');
   let rid = roleId && p.roles.some((x) => x.id === roleId) ? roleId : null;
   if (!rid && r.voice.type === 'library' && r.voice.id) rid = p.roles.find((x) => x.voiceId === r.voice.id)?.id ?? null;
   if (!rid) {
     const role = await projects.addRole(projectId, { name: uniqueRoleName(p, r.voice.name), voiceId: r.voice.type === 'library' ? r.voice.id ?? null : null });
     rid = role.id;
   }
-  const [seg] = await projects.insertSegments(projectId, { items: [{ roleId: rid, text: r.text, instruction: r.instruction }] });
+  const [seg] = await projects.insertSegments(projectId, { items: [{ roleId: rid, text, instruction: r.instruction }] });
   await projects.addSegmentTakeFromFile(projectId, seg.id, quick.quickAudioPath(r), {
     durationMs: r.durationMs, peaks: r.peaks, voiceId: r.voice.id ?? '', voiceName: r.voice.name, voiceVersion: r.voice.version,
-    model: r.model, instruction: r.instruction, text: r.text, chunks: r.chunks, warnings: r.warnings,
+    model: r.model, instruction: r.instruction, text, chunks: r.chunks, warnings: r.warnings,
   });
 }
 

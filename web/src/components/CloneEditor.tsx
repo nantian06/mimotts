@@ -163,19 +163,21 @@ export interface CloneEditorProps {
   target: { type: 'new' } | { type: 'version'; voiceId: string; voiceName: string };
   /** 已经存在的上传（来自合成结果、试听、旧版本） */
   initialUpload?: UploadInfo;
+  /** 沿用已有版本的截取与处理参数（「调整预处理」时） */
+  initial?: { preset: ProcessPresetId; params: ProcessParams; region: Region | null };
   onClose: () => void;
   onSaved: (v: VoiceRecord) => void;
 }
 
-export function CloneEditor({ target, initialUpload, onClose, onSaved }: CloneEditorProps) {
+export function CloneEditor({ target, initialUpload, initial, onClose, onSaved }: CloneEditorProps) {
   const { data: settings } = useSettings();
   const { data: status } = useStatus();
   const [upload, setUpload] = useState<UploadInfo | null>(initialUpload ?? null);
   const [uploading, setUploading] = useState(false);
-  const [region, setRegion] = useState<Region | null>(initialUpload?.suggestion ?? null);
+  const [region, setRegion] = useState<Region | null>(initial ? initial.region : initialUpload?.suggestion ?? null);
   const modelMade = (u: UploadInfo | null) => !!u && ['quick', 'design-take', 'segment-take'].includes(u.source);
-  const [preset, setPreset] = useState<ProcessPresetId>(modelMade(initialUpload ?? null) ? 'fix' : settings?.preprocess.defaultPreset ?? 'standard');
-  const [custom, setCustom] = useState<ProcessParams>(settings?.preprocess.custom ?? PROCESS_PRESETS.standard.params);
+  const [preset, setPreset] = useState<ProcessPresetId>(initial?.preset ?? (modelMade(initialUpload ?? null) ? 'fix' : settings?.preprocess.defaultPreset ?? 'standard'));
+  const [custom, setCustom] = useState<ProcessParams>(initial?.preset === 'custom' ? initial.params : settings?.preprocess.custom ?? PROCESS_PRESETS.standard.params);
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [processing, setProcessing] = useState(false);
   const [procError, setProcError] = useState('');
