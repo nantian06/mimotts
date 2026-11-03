@@ -89,7 +89,8 @@ export function QuickPage() {
         const id = (done.result as { resultId?: string } | undefined)?.resultId;
         await fetchInto(HISTORY);
         const r = peekCache<QuickItem[]>(HISTORY)?.find((x) => x.id === id);
-        if (r) playItem(r);
+        // 页面已经离开就不自动播放，免得打断剧本连播等别处的播放；结果照样进历史
+        if (r && mounted.current) playItem(r);
       } else if (done.status === 'failed') setError(done.error ?? '合成失败');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -102,7 +103,8 @@ export function QuickPage() {
     let player: StreamPlayer | null = null;
     // 播放别的音频或按走带条的停止时：停掉实时播放，但继续接收，生成完照样存进历史
     let interrupted = false;
-    const interrupt = () => { interrupted = true; player?.stop(); };
+    let wakeWait: (() => void) | null = null;
+    const interrupt = () => { interrupted = true; player?.stop(); wakeWait?.(); };
     const title = v?.name ?? '流式合成';
     setRunning({ kind: 'stream', startedAt: Date.now(), abort: () => ctrl.abort() });
     let finished: QuickItem | null = null;
@@ -142,7 +144,8 @@ export function QuickPage() {
       if (left > 0 && !ctrl.signal.aborted) {
         await new Promise<void>((resolve) => {
           const t = setTimeout(done, left * 1000 + 100);
-          function done() { clearTimeout(t); ctrl.signal.removeEventListener('abort', done); resolve(); }
+          function done() { clearTimeout(t); wakeWait = null; ctrl.signal.removeEventListener('abort', done); resolve(); }
+          wakeWait = done;
           ctrl.signal.addEventListener('abort', done);
         });
       }
@@ -165,7 +168,11 @@ export function QuickPage() {
   // Ctrl/⌘ + Enter 生成
   // 离开页面时中止流式合成并停止播放（取消按钮只在这个页面里）
   const streamCtrl = useRef<AbortController | null>(null);
-  useEffect(() => () => streamCtrl.current?.abort(), []);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; streamCtrl.current?.abort(); };
+  }, []);
 
   const genRef = useRef<() => void>(() => undefined);
   genRef.current = () => { if (canGenerate) generate(); };

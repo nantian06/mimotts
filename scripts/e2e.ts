@@ -115,6 +115,16 @@ async function main() {
       await page.locator('.history-item').nth(1).waitFor({ timeout: T });
     });
 
+    await check('生成已结束、缓冲还在播时按停止：立即收尾', async () => {
+      await page.getByLabel('要合成的文本').fill('第三条，用来测试停止。今天天气不错，我们出去走走吧，顺便买点水果回来。');
+      await page.getByRole('button', { name: '生成', exact: true }).click();
+      await page.locator('.transport.is-live').waitFor({ timeout: T });
+      await page.waitForTimeout(1500); // 模拟上游不到 1 秒就发完，剩下约 5 秒在缓冲里播放
+      await page.locator('.transport').getByRole('button', { name: '停止' }).click();
+      await page.locator('.run-state').waitFor({ state: 'detached', timeout: 1500 });
+      await page.locator('.history-item').nth(2).waitFor({ timeout: T });
+    });
+
     await check('设计音色：新建 → 抽卡 3 条 → 固化', async () => {
       await page.goto(`${base}/#/voices`);
       await page.getByRole('button', { name: '新建音色' }).click();
